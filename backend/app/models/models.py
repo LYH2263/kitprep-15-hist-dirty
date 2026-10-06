@@ -44,4 +44,6 @@ class PrepRun(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     order_id: Mapped[int] = mapped_column(ForeignKey("kitchen_orders.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    # 生成时的定额×订单构成指纹；旧单读取时只与当下指纹比对，不改任何数字
+    bom_signature: Mapped[str] = mapped_column(String(64), default="")
     result_json: Mapped[str] = mapped_column(Text, default="{}")
