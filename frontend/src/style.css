@@ -165,6 +165,13 @@ th { color: var(--kp-muted); font-weight: 700; font-size: 0.75rem; }
 }
 .btn:hover { filter: brightness(1.06); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.kp-stale-banner {
+  margin-top: 0.75rem; padding: 0.7rem 0.9rem;
+  border-left: 4px solid var(--kp-accent);
+  background: rgba(196,122,44,0.14);
+  border-radius: 2px; font-size: 0.82rem;
+}
+.kp-stale-item { display: inline-block; margin-left: 0.5rem; font-weight: 700; }
 .muted { color: var(--kp-muted); }
 .stat { font-size: 1.5rem; font-weight: 800; }
 

@@ -5,17 +5,30 @@ const tree = ref<any[]>([])
 const data = ref<any>(null)
 const shortages = ref<any[]>([])
 const orders = ref<any[]>([])
-async function run() {
-  data.value = await api('/prep/run?order_id=1', { method: 'POST' })
-  try {
-    const res = await api('/prep/shortages?order_id=1')
-    shortages.value = res.shortages || []
-  } catch { shortages.value = [] }
+const loading = ref(false)
+
+async function loadLatest() {
+  // 读旧单：只读快照，不会落新单、不改旧数字
+  const res = await api('/prep/latest?order_id=1')
+  data.value = res.exists ? res : null
+  shortages.value = res.exists ? (res.shortages || []) : []
 }
+
+async function run() {
+  loading.value = true
+  try {
+    // 显式生成：仅此动作按当前定额/结存落一张新单
+    data.value = await api('/prep/run?order_id=1', { method: 'POST' })
+    shortages.value = data.value.shortages || []
+  } finally {
+    loading.value = false
+  }
+}
+
 onMounted(async () => {
   tree.value = await api('/bom/tree')
   orders.value = await api('/orders')
-  await run()
+  await loadLatest()
 })
 </script>
 <template>
@@ -26,7 +39,41 @@ onMounted(async () => {
       {{ o.code }} · {{ o.outlet }}
     </span>
   </div>
-  <button class="btn" @click="run">生成备料单</button>
+  <div class="kp-actions" style="display:flex;align-items:center;gap:0.6rem">
+    <button class="btn" :disabled="loading" @click="run">
+      {{ data ? '按当前定额重新生成' : '生成备料单' }}
+    </button>
+    <span v-if="data?.created_at" style="font-size:0.75rem;color:#8a8078">
+      当前单 #{{ data.id }} · 生成于 {{ data.created_at }}
+    </span>
+  </div>
+
+  <!-- 脏标：定额/结存与旧单对不上，只提示，绝不改旧数字 -->
+  <div v-if="data?.stale?.is_stale" class="kp-stale-banner" role="alert">
+    <strong>⚠ 本单数据已过期（脏标）</strong>
+    <ul style="margin:0.3rem 0 0 1.1rem">
+      <li v-if="data.stale.qty_changed.length">
+        定额/订单已变更，需求与缺料与旧单对不上：
+        <span v-for="d in data.stale.qty_changed" :key="'q'+d.ingredient_id" class="kp-stale-item">
+          {{ d.ingredient_name }}（旧需求 {{ d.snapshot_need_qty }} → 当前 {{ d.current_need_qty }}）
+        </span>
+      </li>
+      <li v-if="data.stale.stock_changed.length">
+        结存已变更，本单缺料数字不动：
+        <span v-for="d in data.stale.stock_changed" :key="'s'+d.ingredient_id" class="kp-stale-item">
+          {{ d.ingredient_name }}（结存 {{ d.snapshot_stock_qty }} → {{ d.current_stock_qty }}，旧缺料 {{ d.snapshot_shortage }} → 当前 {{ d.current_shortage }}）
+        </span>
+      </li>
+    </ul>
+    <span style="display:inline-block;margin-top:0.3rem;font-size:0.8rem">
+      旧单数字保持不变；需要新数字请点上方按钮重新生成。
+    </span>
+  </div>
+
+  <div v-if="!data" class="card" style="margin-top:0.85rem;padding:1rem">
+    该订单还没有备料单，点「生成备料单」按当前定额与结存出一张新单。
+  </div>
+
   <div class="kp-workbench" style="margin-top:0.85rem">
     <aside class="kp-bom-tree">
       <h2>菜品 / BOM</h2>
